@@ -32,6 +32,21 @@ vi.mock("../../src/utils/metrics.js", () => ({
   }),
 }));
 
+vi.mock("bullmq", () => {
+  const mockQueue = {
+    add: vi.fn().mockResolvedValue({ id: "mock-job" }),
+    on: vi.fn(),
+    close: vi.fn().mockResolvedValue(undefined),
+  };
+  return {
+    Queue: vi.fn(() => mockQueue),
+    Worker: vi.fn(() => ({
+      on: vi.fn(),
+      close: vi.fn().mockResolvedValue(undefined),
+    })),
+  };
+});
+
 vi.mock("../../src/services/retryPolicy.service.js", () => ({
   retryPolicyService: {
     getPolicy: vi.fn(() => ({

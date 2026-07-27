@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`API schema contracts > GET /api/v1/assets > matches the asset list response contract 1`] = `
+{
+  "assets": [],
+  "total": 0,
+}
+`;
+
+exports[`API schema contracts > GET /api/v1/contracts/:contractAddress/annotations > matches the contract annotation list response contract 1`] = `
+[
+  {
+    "active": true,
+    "author": "auditor@bridgewatch",
+    "content": "Audit note for schema contract test",
+    "createdAt": "2026-01-01T00:00:00.000Z",
+    "endTime": null,
+    "entityId": "CCONTRACT123",
+    "entityType": "contract",
+    "id": "ann-1",
+    "serviceName": "contract",
+    "startTime": null,
+    "updatedAt": "2026-01-01T00:00:00.000Z",
+  },
+]
+`;
+
+exports[`API schema contracts > GET /api/v1/contracts/:contractAddress/annotations > matches the error response contract on invalid create 1`] = `
+{
+  "error": "content is required",
+}
+`;
+
+exports[`API schema contracts > GET /health > matches the health response contract 1`] = `
+{
+  "status": "ok",
+  "version": "0.1.0",
+}
+`;

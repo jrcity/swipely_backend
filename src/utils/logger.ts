@@ -74,7 +74,7 @@ function makeFlexibleLogger(target: any): FlexibleLogger {
 
 // Create base logger configuration
 const baseConfig = {
-  level: config.LOG_LEVEL,
+  level: config.LOG_LEVEL || "info",
   formatters: {
     level: (label: string) => ({ level: label }),
     log: (object: any) => {

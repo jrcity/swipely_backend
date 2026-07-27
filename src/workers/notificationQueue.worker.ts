@@ -4,6 +4,7 @@ import { config } from "../config/index.js";
 import { logger } from "../utils/logger.js";
 import { retryPolicyService } from "../services/retryPolicy.service.js";
 import { getMetricsService } from "../utils/metrics.js";
+import { getCustomBackoffStrategies, getCustomBackoffStrategy, DeliveryDLQ } from "./queue.js";
 
 // =============================================================================
 // NOTIFICATION QUEUE WORKER
@@ -154,6 +155,9 @@ export async function initNotificationQueueWorker(): Promise<void> {
         max: 100,
         duration: 1000,
       },
+      settings: {
+        backoffStrategy: getCustomBackoffStrategy(),
+      },
     }
   );
 
@@ -196,6 +200,19 @@ export async function initNotificationQueueWorker(): Promise<void> {
             priority: job.data.priority,
           }
         );
+
+        try {
+          await DeliveryDLQ.getInstance().moveToDLQ({
+            queue_name: NOTIFICATION_QUEUE_NAME,
+            job_name: job.name || NOTIFICATION_QUEUE_NAME,
+            payload: job.data,
+            attempts: job.attemptsMade,
+            last_error: err.message,
+            last_response: job.returnvalue || null,
+          });
+        } catch (dlqErr) {
+          logger.error({ jobId: job.id, err: dlqErr }, "Failed to move notification to DLQ after max retries");
+        }
       }
     }
   );

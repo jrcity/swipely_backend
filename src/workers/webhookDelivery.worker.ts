@@ -1,9 +1,10 @@
-import { Worker, Job } from "bullmq";
+import { Worker, Job, Queue } from "bullmq";
 import { ConnectionOptions } from "bullmq";
 import { config } from "../config/index.js";
 import { logger } from "../utils/logger.js";
 import { webhookService } from "../services/webhook.service.js";
 import { retryPolicyService } from "../services/retryPolicy.service.js";
+import { getCustomBackoffStrategies, getCustomBackoffStrategy, DeliveryDLQ } from "./queue.js";
 
 // =============================================================================
 // WEBHOOK DELIVERY WORKER
@@ -25,6 +26,7 @@ const WEBHOOK_RETRY_POLICY = retryPolicyService.getPolicy({
 });
 
 let webhookWorker: Worker | null = null;
+let webhookQueue: Queue | null = null;
 
 export async function initWebhookWorker(): Promise<void> {
   if (webhookWorker) {
@@ -68,6 +70,9 @@ export async function initWebhookWorker(): Promise<void> {
         max: 100, // Max 100 jobs per second across all endpoints
         duration: 1000,
       },
+      settings: {
+        backoffStrategy: getCustomBackoffStrategy(),
+      },
     }
   );
 
@@ -98,6 +103,20 @@ export async function initWebhookWorker(): Promise<void> {
       } catch (updateError) {
         logger.error({ jobId: job.id }, "Failed to update delivery status after max retries");
       }
+
+      // Move to Dead-Letter Queue
+      try {
+        await DeliveryDLQ.getInstance().moveToDLQ({
+          queue_name: WEBHOOK_QUEUE_NAME,
+          job_name: job.name || WEBHOOK_QUEUE_NAME,
+          payload: job.data,
+          attempts: job.attemptsMade,
+          last_error: errorMessage,
+          last_response: job.returnvalue || null,
+        });
+      } catch (dlqError) {
+        logger.error({ jobId: job.id, err: dlqError }, "Failed to move webhook delivery to DLQ after max retries");
+      }
     }
   });
 
@@ -118,8 +137,25 @@ export async function stopWebhookWorker(): Promise<void> {
     webhookWorker = null;
     logger.info("Webhook delivery worker stopped");
   }
+  if (webhookQueue) {
+    await webhookQueue.close();
+    webhookQueue = null;
+  }
 }
 
 export function getWebhookWorker(): Worker | null {
   return webhookWorker;
+}
+
+export function getWebhookQueue(): Queue {
+  if (!webhookQueue) {
+    webhookQueue = new Queue(WEBHOOK_QUEUE_NAME, {
+      connection: webhookConnection,
+      defaultJobOptions: {
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    });
+  }
+  return webhookQueue;
 }
