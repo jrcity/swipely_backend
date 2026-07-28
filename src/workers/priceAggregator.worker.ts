@@ -4,7 +4,7 @@ import { PriceService, type AggregatedPrice } from "../services/price.service.js
 import { logger } from "../utils/logger.js";
 import { alertRoutingService, type RouteableAlert } from "../services/alertRouting.service.js";
 import { duplicateAlertCheckService } from "../services/duplicateAlertCheck.service.js";
-import type { AlertEvent } from "../services/alert.service.js";
+import type { AlertEventInput } from "../services/alert.service.js";
 import { PriceModel } from "../database/models/price.model.js";
 
 const QUEUE_NAME = "price-aggregator";
@@ -27,21 +27,21 @@ function buildDeviationAlert(symbol: string, deviation: { deviated: boolean; per
     ruleName: "Price Deviation",
     assetCode: symbol,
     sourceType: "price_deviation",
-    severity: deviation.percentage > (config.PRICE_DEVIATION_THRESHOLD ?? 0.02) * 2 ? "critical" : "high",
+    severity: deviation.percentage > config.PRICE_DEVIATION_THRESHOLD * 2 ? "critical" : "high",
     triggeredValue: deviation.percentage,
-    threshold: config.PRICE_DEVIATION_THRESHOLD ?? 0.02,
+    threshold: config.PRICE_DEVIATION_THRESHOLD,
     metric: "price_deviation_pct",
   };
 }
 
 async function routeDeviationAlert(symbol: string, deviation: { deviated: boolean; percentage: number }): Promise<void> {
-  const dedupEvent: Omit<AlertEvent, "eventId"> = {
+  const dedupEvent: AlertEventInput = {
     ruleId: `price-aggregator-${symbol}`,
     assetCode: symbol,
     alertType: "price_deviation",
-    priority: deviation.percentage > (config.PRICE_DEVIATION_THRESHOLD ?? 0.02) * 2 ? "critical" : "high",
+    priority: deviation.percentage > config.PRICE_DEVIATION_THRESHOLD * 2 ? "critical" : "high",
     triggeredValue: deviation.percentage,
-    threshold: config.PRICE_DEVIATION_THRESHOLD ?? 0.02,
+    threshold: config.PRICE_DEVIATION_THRESHOLD,
     metric: "price_deviation_pct",
     webhookDelivered: false,
     onChainEventId: null,

@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { getDatabase } from "../database/connection";
 import { logger } from "../utils/logger";
+import { config } from "../config/index";
 import { featureFlagAuditService } from "./featureFlagAudit.service";
 import {
   createHash,
@@ -62,8 +63,10 @@ export interface ConfigAuditLog {
 
 // ─── Encryption Utilities ────────────────────────────────────────────────────
 
+// Use the validated env config so the key is always properly set.
+// Falls back to a clearly insecure default only in non-production environments.
 const ENCRYPTION_KEY =
-  process.env.CONFIG_ENCRYPTION_KEY || "default-key-change-in-production-32b";
+  config.CONFIG_ENCRYPTION_KEY ?? "default-key-change-in-production-32b";
 const ALGORITHM = "aes-256-cbc";
 
 function encrypt(text: string): string {
@@ -92,7 +95,7 @@ export class ConfigService {
   private featureFlagCache: Map<string, FeatureFlag> = new Map();
   private environment: string;
 
-  constructor(environment: string = process.env.NODE_ENV || "development") {
+  constructor(environment: string = config.NODE_ENV) {
     this.environment = environment;
   }
 

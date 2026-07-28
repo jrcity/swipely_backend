@@ -149,6 +149,44 @@ groups:
           summary: "Jobs taking too long to complete"
           description: "95th percentile duration: {{ $value }}s for {{ $labels.job_type }}"
 
+      # Fires when any individual priority queue accumulates more than 200 waiting
+      # jobs for longer than 5 minutes — a sign the worker can't keep up.
+      - alert: QueueBacklogSustained
+        expr: |
+          queue_jobs_waiting{job_type="all"} > 200
+        for: 5m
+        labels:
+          severity: critical
+          component: queue
+        annotations:
+          summary: "Sustained queue backlog on {{ $labels.queue_name }}"
+          description: >
+            Queue {{ $labels.queue_name }} has {{ $value | humanize }} waiting jobs for
+            more than 5 minutes. Worker throughput may be insufficient or workers
+            may have stopped processing.
+
+      # Fires when the per-queue failure ratio exceeds 20 % over a 10-minute
+      # window — stricter than the existing HighQueueJobFailureRate rule and
+      # scoped to individual queues so alert routing can differentiate priority.
+      - alert: QueueElevatedFailureRate
+        expr: |
+          sum by (queue_name) (rate(queue_jobs_failed_total[10m]))
+            /
+          (
+            sum by (queue_name) (rate(queue_jobs_completed_total[10m]))
+            + sum by (queue_name) (rate(queue_jobs_failed_total[10m]))
+          ) > 0.20
+        for: 10m
+        labels:
+          severity: critical
+          component: queue
+        annotations:
+          summary: "Elevated job failure rate on {{ $labels.queue_name }}"
+          description: >
+            {{ $labels.queue_name }} has a failure rate of
+            {{ $value | humanizePercentage }} over the last 10 minutes
+            (threshold: 20 %). Check worker logs for recurring error types.
+
       # Cache Alerts
       - alert: LowCacheHitRate
         expr: |

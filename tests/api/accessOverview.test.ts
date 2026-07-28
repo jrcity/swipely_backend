@@ -4,10 +4,14 @@ import * as connection from "../../src/database/connection.js";
 
 function makeDb(bridges: object[], operators: object[]) {
   const queryBuilder = (table: string) => {
+    const rows = table === "bridges" ? bridges : operators;
     const qb: any = {
       select: () => qb,
       where: () => qb,
-      orderBy: () => (table === "bridges" ? Promise.resolve(bridges) : Promise.resolve(operators)),
+      orderBy: () => qb,
+      // Awaitable regardless of which method terminates the chain.
+      then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+        Promise.resolve(rows).then(resolve, reject),
     };
     return qb;
   };

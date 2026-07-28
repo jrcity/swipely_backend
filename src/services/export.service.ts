@@ -334,7 +334,7 @@ export class ExportService {
    * Generate download token for URL signing
    */
   private generateDownloadToken(exportId: string): string {
-    const secret = process.env.JWT_SECRET || "default-secret-change-in-production";
+    const secret = config.JWT_SECRET ?? "default-secret-change-in-production";
     const data = `${exportId}:${Date.now()}`;
     return crypto.createHmac("sha256", secret).update(data).digest("hex");
   }

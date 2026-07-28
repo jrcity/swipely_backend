@@ -1,6 +1,7 @@
 import { getDatabase } from "../database/connection.js";
 import { createChildLogger } from "../utils/logger.js";
 import { AlertService } from "./alert.service.js";
+import { alertOnSchemaDrift } from "./schemaDriftAlerting.service.js";
 
 const logger = createChildLogger("schema-drift");
 
@@ -192,9 +193,6 @@ export class SchemaDriftService {
     const nonBreakingCount = incidents.length - breakingCount;
 
     if (breakingCount > 0) {
-      // Trigger a critical alert for breaking schema changes
-      // Note: We need to ensure "schema_drift" is a valid AlertType
-      // For now, I'll use a generic metric update or direct logging if AlertService doesn't support it yet
       logger.error(
         { sourceName, breakingCount },
         "CRITICAL: Breaking schema drift detected in upstream payload"
@@ -207,6 +205,17 @@ export class SchemaDriftService {
         "Warning: Non-breaking schema additions detected in upstream payload"
       );
     }
+
+    await Promise.all(
+      incidents.map((incident) =>
+        alertOnSchemaDrift(incident).catch((err) =>
+          logger.error(
+            { sourceName, fieldPath: incident.fieldPath, err },
+            "Failed to raise schema drift alert"
+          )
+        )
+      )
+    );
   }
 
   /**

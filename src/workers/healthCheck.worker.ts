@@ -4,7 +4,7 @@ import { HealthService, type HealthScore } from "../services/health.service.js";
 import { logger } from "../utils/logger.js";
 import { alertRoutingService, type RouteableAlert } from "../services/alertRouting.service.js";
 import { duplicateAlertCheckService } from "../services/duplicateAlertCheck.service.js";
-import type { AlertEvent } from "../services/alert.service.js";
+import type { AlertEventInput } from "../services/alert.service.js";
 import { HealthScoreModel } from "../database/models/healthScore.model.js";
 
 const QUEUE_NAME = "health-check";
@@ -26,10 +26,10 @@ function buildDeterioratingAlert(score: HealthScore): RouteableAlert {
     ownerAddress: "system",
     ruleName: "Health Score Deteriorating",
     assetCode: score.symbol,
-    sourceType: "health_deterioration",
+    sourceType: "health_score_drop",
     severity: score.overallScore < 0.3 ? "critical" : "high",
     triggeredValue: score.overallScore,
-    threshold: config.HEALTH_SCORE_THRESHOLD ?? 0.5,
+    threshold: config.HEALTH_SCORE_THRESHOLD,
     metric: "overall_health_score",
   };
 }
@@ -37,13 +37,13 @@ function buildDeterioratingAlert(score: HealthScore): RouteableAlert {
 async function routeDeterioratingAlerts(scores: HealthScore[]): Promise<void> {
   const deteriorating = scores.filter((s) => s.trend === "deteriorating");
   for (const score of deteriorating) {
-    const dedupEvent: Omit<AlertEvent, "eventId"> = {
+    const dedupEvent: AlertEventInput = {
       ruleId: `health-check-${score.symbol}`,
       assetCode: score.symbol,
-      alertType: "health_deterioration",
+      alertType: "health_score_drop",
       priority: score.overallScore < 0.3 ? "critical" : "high",
       triggeredValue: score.overallScore,
-      threshold: config.HEALTH_SCORE_THRESHOLD ?? 0.5,
+      threshold: config.HEALTH_SCORE_THRESHOLD,
       metric: "overall_health_score",
       webhookDelivered: false,
       onChainEventId: null,

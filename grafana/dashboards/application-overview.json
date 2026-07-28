@@ -279,6 +279,103 @@
             "refId": "A"
           }
         ]
+      },
+      {
+        "id": 20,
+        "title": "Worker Fleet",
+        "type": "row",
+        "gridPos": { "x": 0, "y": 46, "w": 24, "h": 1 },
+        "collapsed": false
+      },
+      {
+        "id": 21,
+        "title": "Queue Depth (Waiting Jobs)",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 47, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "queue_jobs_waiting{job_type=\"all\"}",
+            "legendFormat": "{{queue_name}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          { "format": "short", "label": "Jobs waiting", "min": 0 },
+          { "format": "short" }
+        ],
+        "thresholds": [
+          { "value": 100, "colorMode": "critical", "op": "gt", "fill": true, "line": true }
+        ],
+        "tooltip": { "shared": true, "sort": 0 }
+      },
+      {
+        "id": 22,
+        "title": "Job Processing Latency (p50 / p95 / p99)",
+        "type": "graph",
+        "gridPos": { "x": 12, "y": 47, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (queue_name, le) (rate(queue_job_duration_seconds_bucket[5m])))",
+            "legendFormat": "p50 {{queue_name}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (queue_name, le) (rate(queue_job_duration_seconds_bucket[5m])))",
+            "legendFormat": "p95 {{queue_name}}",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (queue_name, le) (rate(queue_job_duration_seconds_bucket[5m])))",
+            "legendFormat": "p99 {{queue_name}}",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          { "format": "s", "label": "Duration", "min": 0 },
+          { "format": "short" }
+        ],
+        "tooltip": { "shared": true, "sort": 2 }
+      },
+      {
+        "id": 23,
+        "title": "Job Failure Rate",
+        "type": "graph",
+        "gridPos": { "x": 0, "y": 55, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum by (queue_name) (rate(queue_jobs_failed_total[5m]))",
+            "legendFormat": "failures/s {{queue_name}}",
+            "refId": "A"
+          },
+          {
+            "expr": "sum by (queue_name) (rate(queue_jobs_failed_total[5m])) / (sum by (queue_name) (rate(queue_jobs_completed_total[5m])) + sum by (queue_name) (rate(queue_jobs_failed_total[5m])))",
+            "legendFormat": "failure ratio {{queue_name}}",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          { "format": "short", "label": "Rate", "min": 0 },
+          { "format": "short" }
+        ],
+        "tooltip": { "shared": true, "sort": 0 }
+      },
+      {
+        "id": 24,
+        "title": "In-Flight Jobs",
+        "type": "graph",
+        "gridPos": { "x": 12, "y": 55, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "queue_jobs_active{job_type=\"all\"}",
+            "legendFormat": "active {{queue_name}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          { "format": "short", "label": "Jobs in-flight", "min": 0 },
+          { "format": "short" }
+        ],
+        "tooltip": { "shared": true, "sort": 0 }
       }
     ]
   }

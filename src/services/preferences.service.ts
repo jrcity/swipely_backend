@@ -31,6 +31,7 @@ type PreferenceDefaultsRow = {
   category: PreferenceCategory;
   pref_key: string;
   value: unknown;
+  schema_version?: number;
 };
 
 export interface EffectivePreferences {
@@ -140,7 +141,7 @@ export class PreferencesService {
     const [defaultRows, overrideRows] = await Promise.all([
       db<PreferenceDefaultsRow>("preference_defaults")
         .select("category", "pref_key", "value")
-        .where({ schema_version: CURRENT_PREFERENCE_SCHEMA_VERSION }),
+        .where("schema_version", CURRENT_PREFERENCE_SCHEMA_VERSION),
       db<UserPreferenceRow>("user_preferences")
         .select("user_id", "category", "pref_key", "value")
         .where({ user_id: userId }),

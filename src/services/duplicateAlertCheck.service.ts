@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { logger } from "../utils/logger.js";
-import type { AlertEvent, AlertPriority, AlertType } from "./alert.service.js";
+import type { AlertEvent, AlertEventInput, AlertPriority, AlertType } from "./alert.service.js";
 
 export interface DedupRule {
   id: string;
@@ -26,7 +26,7 @@ export interface DuplicateCheckResult {
 
 export interface ReviewQueueEntry {
   id: string;
-  incomingEvent: Omit<AlertEvent, "eventId">;
+  incomingEvent: AlertEventInput;
   matchedEventId: string;
   matchScore: number;
   reason: string;
@@ -100,7 +100,7 @@ export class DuplicateAlertCheckService {
    * Check an incoming alert event for duplicates before it is persisted or dispatched.
    * Returns the action to take and any escalation details.
    */
-  public check(event: Omit<AlertEvent, "eventId">): DuplicateCheckResult {
+  public check(event: AlertEventInput): DuplicateCheckResult {
     this.evict();
 
     const activeRules = [...this.rules.values()]
@@ -254,7 +254,7 @@ export class DuplicateAlertCheckService {
   // ---------------------------------------------------------------------------
 
   private fingerprint(
-    event: Omit<AlertEvent, "eventId">,
+    event: AlertEventInput,
     fields: DedupRule["matchFields"]
   ): string {
     const parts: string[] = [];
@@ -274,7 +274,7 @@ export class DuplicateAlertCheckService {
   }
 
   private matchScore(
-    event: Omit<AlertEvent, "eventId">,
+    event: AlertEventInput,
     existingPriority: AlertPriority
   ): number {
     let score = 0.5;
@@ -301,7 +301,7 @@ export class DuplicateAlertCheckService {
   }
 
   private enqueueReview(
-    event: Omit<AlertEvent, "eventId">,
+    event: AlertEventInput,
     matchedEventId: string,
     matchScore: number,
     reason: string

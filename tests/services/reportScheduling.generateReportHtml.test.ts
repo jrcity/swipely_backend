@@ -104,7 +104,7 @@ describe("ReportSchedulingService.generateReportHtml", () => {
     getProtocolStatsMock.mockResolvedValue(makeStats());
     getAssetRankingsMock.mockResolvedValue(makeRankings());
     getRecentAlertsMock.mockResolvedValue([]);
-    getDriftSummariesMock.mockResolvedValue([]);
+    getDriftSummariesMock.mockResolvedValue({ summaries: [] });
   });
 
   describe("HTML structure", () => {
@@ -208,13 +208,13 @@ describe("ReportSchedulingService.generateReportHtml", () => {
       expect(getProtocolStatsMock).toHaveBeenCalledOnce();
       expect(getAssetRankingsMock).toHaveBeenCalledOnce();
       expect(getRecentAlertsMock).toHaveBeenCalledWith(50);
-      expect(getDriftSummariesMock).toHaveBeenCalledWith({ limit: 10 });
+      expect(getDriftSummariesMock).toHaveBeenCalledWith();
     });
   });
 
   describe("reconciliation section", () => {
     it("renders drift data when available", async () => {
-      getDriftSummariesMock.mockResolvedValue(makeDrifts());
+      getDriftSummariesMock.mockResolvedValue({ summaries: makeDrifts() });
 
       const html = await (service as any).generateReportHtml(makeDelivery());
 
@@ -223,7 +223,7 @@ describe("ReportSchedulingService.generateReportHtml", () => {
     });
 
     it("shows no-drift message when reconciliation returns empty", async () => {
-      getDriftSummariesMock.mockResolvedValue([]);
+      getDriftSummariesMock.mockResolvedValue({ summaries: [] });
 
       const html = await (service as any).generateReportHtml(makeDelivery());
 

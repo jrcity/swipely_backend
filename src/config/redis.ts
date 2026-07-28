@@ -27,7 +27,7 @@ const clusterOptions: ClusterOptions = {
 let redisClient: Redis | Cluster;
 
 export const createRedisClient = (): Redis | Cluster => {
-  if (config.NODE_ENV === "production" && process.env.REDIS_CLUSTER === "true") {
+  if (config.NODE_ENV === "production" && config.REDIS_CLUSTER === "true") {
     // Provide your cluster nodes configuration here
     // In a real environment, this might come from env config like REDIS_CLUSTER_NODES
     const nodes: ClusterNode[] = [

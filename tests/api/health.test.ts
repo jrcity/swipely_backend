@@ -49,7 +49,7 @@ describe("Health Check Endpoints", () => {
   });
 
   describe("GET /health/ready", () => {
-    it("should return readiness status", async () => {
+    it("should return deep readiness status with 200 or 503", async () => {
       const response = await server.inject({
         method: "GET",
         url: "/api/v1/health/ready",
@@ -57,14 +57,54 @@ describe("Health Check Endpoints", () => {
 
       expect([200, 503]).toContain(response.statusCode);
       const payload = JSON.parse(response.payload);
+
+      // Top-level shape
       expect(payload).toMatchObject({
-        status: expect.stringMatching(/ready|not_ready/),
-        checks: {
-          database: expect.any(Boolean),
-          redis: expect.any(Boolean),
+        status: expect.stringMatching(/^ready$|^not_ready$/),
+        checkedAt: expect.any(String),
+        summary: {
+          total: expect.any(Number),
+          healthy: expect.any(Number),
+          unhealthy: expect.any(Number),
+          degraded: expect.any(Number),
+          unknown: expect.any(Number),
         },
       });
-      expect(new Date(payload.timestamp)).toBeInstanceOf(Date);
+      expect(new Date(payload.checkedAt)).toBeInstanceOf(Date);
+
+      // checks block must be present
+      expect(payload.checks).toBeDefined();
+      expect(payload.checks.database).toMatchObject({
+        status: expect.stringMatching(/healthy|degraded|unhealthy|unknown/),
+        checkedAt: expect.any(String),
+      });
+      expect(payload.checks.cache).toMatchObject({
+        status: expect.stringMatching(/healthy|degraded|unhealthy|unknown/),
+        checkedAt: expect.any(String),
+      });
+      expect(payload.checks.outbox).toMatchObject({
+        status: expect.stringMatching(/healthy|degraded|unhealthy|unknown/),
+        checkedAt: expect.any(String),
+        pendingEvents: expect.any(Number),
+        failedEvents: expect.any(Number),
+        deadLetterEvents: expect.any(Number),
+      });
+      expect(Array.isArray(payload.checks.workers)).toBe(true);
+      expect(Array.isArray(payload.checks.externalProviders)).toBe(true);
+    });
+
+    it("should return 503 when critical dependencies are unhealthy", async () => {
+      // This test verifies the status code logic: 503 iff status === "not_ready"
+      const response = await server.inject({
+        method: "GET",
+        url: "/api/v1/health/ready",
+      });
+      const payload = JSON.parse(response.payload);
+      if (payload.status === "not_ready") {
+        expect(response.statusCode).toBe(503);
+      } else {
+        expect(response.statusCode).toBe(200);
+      }
     });
   });
 
@@ -363,6 +403,134 @@ describe("Health Check Service Unit Tests", () => {
           apis: expect.any(Array),
           healthyCount: expect.any(Number),
           totalCount: expect.any(Number),
+        });
+      }
+    });
+  });
+});
+
+describe("DeepReadinessService Unit Tests", () => {
+  let DeepReadinessService: any;
+  let deepReadinessService: any;
+
+  beforeAll(async () => {
+    const module = await import("../../src/services/deepReadiness.service.js");
+    DeepReadinessService = module.DeepReadinessService;
+    deepReadinessService = new DeepReadinessService();
+  });
+
+  afterAll(async () => {
+    if (deepReadinessService) {
+      await deepReadinessService.disconnect();
+    }
+  });
+
+  describe("getDeepReadiness", () => {
+    it("should return a structured deep readiness response", async () => {
+      const result = await deepReadinessService.getDeepReadiness();
+
+      expect(result).toMatchObject({
+        status: expect.stringMatching(/^ready$|^not_ready$/),
+        checkedAt: expect.any(String),
+        summary: {
+          total: expect.any(Number),
+          healthy: expect.any(Number),
+          unhealthy: expect.any(Number),
+          degraded: expect.any(Number),
+          unknown: expect.any(Number),
+        },
+      });
+      expect(new Date(result.checkedAt)).toBeInstanceOf(Date);
+
+      expect(result.checks).toBeDefined();
+      expect(result.checks.database).toMatchObject({
+        status: expect.stringMatching(/healthy|degraded|unhealthy|unknown/),
+        checkedAt: expect.any(String),
+      });
+      expect(result.checks.cache).toMatchObject({
+        status: expect.stringMatching(/healthy|degraded|unhealthy|unknown/),
+        checkedAt: expect.any(String),
+      });
+      expect(result.checks.outbox).toMatchObject({
+        status: expect.stringMatching(/healthy|degraded|unhealthy|unknown/),
+        checkedAt: expect.any(String),
+        pendingEvents: expect.any(Number),
+        failedEvents: expect.any(Number),
+        deadLetterEvents: expect.any(Number),
+      });
+      expect(Array.isArray(result.checks.workers)).toBe(true);
+      expect(Array.isArray(result.checks.externalProviders)).toBe(true);
+    });
+
+    it("status is not_ready when any unhealthy dependency exists", async () => {
+      const result = await deepReadinessService.getDeepReadiness();
+      const hasUnhealthy = result.summary.unhealthy > 0;
+      if (hasUnhealthy) {
+        expect(result.status).toBe("not_ready");
+      } else {
+        expect(result.status).toBe("ready");
+      }
+    });
+  });
+
+  describe("checkDatabase", () => {
+    it("should return a DependencyResult", async () => {
+      const result = await deepReadinessService.checkDatabase();
+      expect(result).toMatchObject({
+        status: expect.stringMatching(/healthy|unhealthy/),
+        checkedAt: expect.any(String),
+      });
+    });
+  });
+
+  describe("checkCache", () => {
+    it("should return a DependencyResult", async () => {
+      const result = await deepReadinessService.checkCache();
+      expect(result).toMatchObject({
+        status: expect.stringMatching(/healthy|unhealthy/),
+        checkedAt: expect.any(String),
+      });
+    });
+  });
+
+  describe("checkOutboxLag", () => {
+    it("should return an OutboxLagResult with numeric counters", async () => {
+      const result = await deepReadinessService.checkOutboxLag();
+      expect(result).toMatchObject({
+        status: expect.stringMatching(/healthy|degraded|unhealthy|unknown/),
+        checkedAt: expect.any(String),
+        pendingEvents: expect.any(Number),
+        failedEvents: expect.any(Number),
+        deadLetterEvents: expect.any(Number),
+      });
+    });
+  });
+
+  describe("checkWorkerHeartbeats", () => {
+    it("should return an array of WorkerHeartbeatResult", async () => {
+      const results = await deepReadinessService.checkWorkerHeartbeats();
+      expect(Array.isArray(results)).toBe(true);
+      for (const r of results) {
+        expect(r).toMatchObject({
+          workerName: expect.any(String),
+          status: expect.stringMatching(/healthy|degraded|unhealthy|unknown/),
+          checkedAt: expect.any(String),
+          reachable: expect.any(Boolean),
+        });
+      }
+    });
+  });
+
+  describe("checkExternalProviders", () => {
+    it("should return an array (empty when table is missing)", async () => {
+      const results = await deepReadinessService.checkExternalProviders();
+      expect(Array.isArray(results)).toBe(true);
+      for (const r of results) {
+        expect(r).toMatchObject({
+          providerKey: expect.any(String),
+          displayName: expect.any(String),
+          status: expect.stringMatching(/healthy|degraded|unhealthy|unknown/),
+          checkedAt: expect.any(String),
         });
       }
     });

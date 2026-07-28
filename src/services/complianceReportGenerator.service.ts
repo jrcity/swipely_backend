@@ -6,6 +6,7 @@
 
 import { getDatabase } from "../database/connection.js";
 import { logger } from "../utils/logger.js";
+import { config } from "../config/index.js";
 import { createHash, createSign, randomBytes } from "crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
@@ -150,9 +151,9 @@ interface CollectedReportData {
 // ─── Compliance Report Generator ──────────────────────────────────────────────
 
 export class ComplianceReportGenerator {
-  private readonly reportDir = process.env.REPORT_DIR || "./reports";
-  private readonly archiveDir = process.env.ARCHIVE_DIR || "./archives";
-  private readonly signatureKey = process.env.REPORT_SIGNING_KEY_PATH;
+  private readonly reportDir = config.REPORT_DIR;
+  private readonly archiveDir = config.ARCHIVE_DIR;
+  private readonly signatureKey = config.REPORT_SIGNING_KEY_PATH;
 
   constructor() {
     // Ensure directories exist

@@ -146,6 +146,7 @@ vi.mock("bullmq", () => {
 
     close = vi.fn(async () => undefined);
     run = vi.fn(async () => undefined);
+    pause = vi.fn(async () => undefined);
   }
 
   return {

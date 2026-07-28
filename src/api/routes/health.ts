@@ -1,7 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { HealthCheckService } from "../../services/healthCheck.service.js";
+import { DeepReadinessService } from "../../services/deepReadiness.service.js";
 
 const healthService = new HealthCheckService();
+const deepReadinessService = new DeepReadinessService();
 
 /**
  * Health check routes for monitoring and Kubernetes probes
@@ -48,25 +50,31 @@ export async function healthRoutes(server: FastifyInstance) {
     }
   );
 
-  // Kubernetes readiness probe
-  // Checks if essential dependencies (database, redis) are ready
+  // Deep readiness probe
+  // Aggregates: database, cache, outbox lag, worker heartbeats, external providers.
+  // Returns 200 when all critical checks pass; 503 when any critical dependency is unhealthy.
   server.get(
     "/ready",
     async (_request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const readiness = await healthService.getReadiness();
+        const readiness = await deepReadinessService.getDeepReadiness();
         reply.code(readiness.status === "ready" ? 200 : 503);
         return readiness;
       } catch (error) {
-        server.log.error({ error }, "Readiness probe failed");
+        server.log.error({ error }, "Deep readiness probe failed");
         reply.code(503);
         return {
           status: "not_ready",
-          timestamp: new Date().toISOString(),
+          checkedAt: new Date().toISOString(),
           checks: {
-            database: false,
-            redis: false,
+            database: { status: "unknown", checkedAt: new Date().toISOString() },
+            cache: { status: "unknown", checkedAt: new Date().toISOString() },
+            outbox: { status: "unknown", checkedAt: new Date().toISOString(), pendingEvents: 0, failedEvents: 0, deadLetterEvents: 0 },
+            workers: [],
+            externalProviders: [],
           },
+          summary: { total: 0, healthy: 0, unhealthy: 0, degraded: 0, unknown: 0 },
+          error: error instanceof Error ? error.message : "Unknown error",
         };
       }
     }

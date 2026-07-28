@@ -25,6 +25,7 @@ export default defineConfig({
           name: "unit",
           include: [
             "tests/api/**/*.test.ts",
+            "tests/config/**/*.test.ts",
             "tests/services/**/*.test.ts",
             "tests/workers/**/*.test.ts",
             "tests/jobs/**/*.test.ts",

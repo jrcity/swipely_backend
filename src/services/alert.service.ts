@@ -70,6 +70,24 @@ export interface AlertEvent {
   time: Date;
 }
 
+/**
+ * The subset of {@link AlertEvent} fields available when an alert is first
+ * detected (before it is persisted and assigned an eventId / lifecycle fields).
+ * Used by producers such as the monitor workers and by the deduplication check.
+ */
+export type AlertEventInput = Pick<
+  AlertEvent,
+  | "ruleId"
+  | "assetCode"
+  | "alertType"
+  | "priority"
+  | "triggeredValue"
+  | "threshold"
+  | "metric"
+  | "webhookDelivered"
+  | "onChainEventId"
+>;
+
 export interface MetricSnapshot {
   assetCode: string;
   metrics: Record<string, number>;

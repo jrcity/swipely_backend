@@ -1,0 +1,20 @@
+{
+  "bridges": [
+    {
+      "name": "Allbridge",
+      "status": "healthy",
+      "totalValueLocked": 15250000,
+      "supplyOnStellar": 12000000,
+      "supplyOnSource": 12015000,
+      "mismatchPercentage": 0.125
+    },
+    {
+      "name": "Stellar Circle Bridge",
+      "status": "healthy",
+      "totalValueLocked": 48000000,
+      "supplyOnStellar": 47800000,
+      "supplyOnSource": 47900000,
+      "mismatchPercentage": 0.209
+    }
+  ]
+}

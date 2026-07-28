@@ -13,9 +13,8 @@ export class CorrelationService {
   private threshold: number;
 
   constructor() {
-    // configurable via env CORRELATION_THRESHOLD (0-1)
-    const raw = (process.env.CORRELATION_THRESHOLD as string) ?? "0.6";
-    this.threshold = Math.max(0, Math.min(1, Number(raw)));
+    // configurable via CORRELATION_THRESHOLD env var (0–1)
+    this.threshold = config.CORRELATION_THRESHOLD;
   }
 
   private tokenize(text: string): string[] {

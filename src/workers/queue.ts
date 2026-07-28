@@ -3,6 +3,7 @@ import { config } from "../config/index.js";
 import { logger } from "../utils/logger.js";
 import { retryPolicyService } from "../services/retryPolicy.service.js";
 import { getDatabase } from "../database/connection.js";
+import { getMetricsService } from "../services/metrics.service.js";
 
 const connection: ConnectionOptions = {
   host: config.REDIS_HOST,
@@ -199,10 +200,17 @@ export class DeliveryDLQ {
   }
 }
 
+/**
+ * Interval (ms) at which each queue's waiting/active counts are pushed to
+ * Prometheus gauges. Kept short enough to catch bursts without hammering Redis.
+ */
+const GAUGE_POLL_INTERVAL_MS = 15_000;
+
 export class JobQueue {
   private static instance: JobQueue;
   private queues: Record<string, Queue> = {};
-  private worker: Worker | null = null;
+  private workers: Worker[] = [];
+  private gaugePollers: NodeJS.Timeout[] = [];
 
   private constructor() {
     const retryPolicy = retryPolicyService.getPolicy({ operation: "queue:default" });
@@ -218,10 +226,10 @@ export class JobQueue {
           removeOnComplete: true,
           removeOnFail: false,
         },
-        // rate limiting can be configured per priority via environment
+        // rate limiting can be configured per priority via validated env config
         limiter: {
-          max: Number(process.env[`QUEUE_RATE_MAX_${p.toUpperCase()}`] || 1000),
-          duration: Number(process.env[`QUEUE_RATE_DURATION_MS_${p.toUpperCase()}`] || 1000),
+          max: config[`QUEUE_RATE_MAX_${p.toUpperCase()}` as keyof typeof config] as number ?? 1000,
+          duration: config[`QUEUE_RATE_DURATION_MS_${p.toUpperCase()}` as keyof typeof config] as number ?? 1000,
         },
       } as any);
     }
@@ -257,40 +265,117 @@ export class JobQueue {
     });
   }
 
+  /**
+   * Initialise one Worker per priority queue so that all queues are drained
+   * concurrently rather than only the first queue being served.
+   *
+   * Each worker emits Prometheus metrics on every completed/failed event and
+   * updates the active/waiting gauges via a periodic poll.
+   */
   public initWorker(processor: (job: Job) => Promise<void>) {
-    if (this.worker) return;
+    if (this.workers.length > 0) return;
 
-    // create a worker that listens on all priority queues by switching processor per queue
-    const queueNames = Object.keys(this.queues);
-    this.worker = new Worker(queueNames[0], async (job) => processor(job), {
-      connection,
-      concurrency: 5,
-      settings: {
-        backoffStrategy: getCustomBackoffStrategy(),
-      },
-    });
+    const metrics = getMetricsService();
 
-    this.worker.on("completed", (job: Job) => {
-      logger.info({ jobId: job.id, jobName: job.name }, "Job completed successfully");
-    });
+    for (const queueName of Object.keys(this.queues)) {
+      const worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          const start = Date.now();
 
-    this.worker.on("failed", async (job: Job | undefined, err: Error) => {
-      logger.error({ jobId: job?.id, jobName: job?.name, error: err.message }, "Job failed");
-      if (job && job.attemptsMade >= (job.opts.attempts || 1)) {
-        try {
-          await DeliveryDLQ.getInstance().moveToDLQ({
-            queue_name: job.queueName || queueNames[0],
-            job_name: job.name || "default",
-            payload: job.data,
-            attempts: job.attemptsMade,
-            last_error: err.message,
-            last_response: job.returnvalue || null,
-          });
-        } catch (dlqErr) {
-          logger.error({ jobId: job?.id, err: dlqErr }, "Failed to move job to DLQ");
+          // Increment in-flight gauge for this queue + job type
+          metrics.queueJobsActive.inc({ queue_name: queueName, job_type: job.name });
+
+          try {
+            await processor(job);
+          } finally {
+            // Always decrement in-flight even if the processor throws so that
+            // BullMQ's own failed-event handler can still fire cleanly.
+            metrics.queueJobsActive.dec({ queue_name: queueName, job_type: job.name });
+
+            const durationSeconds = (Date.now() - start) / 1000;
+            metrics.queueJobDuration.observe(
+              { queue_name: queueName, job_type: job.name },
+              durationSeconds,
+            );
+          }
+        },
+        {
+          connection,
+          concurrency: 5,
+          settings: {
+            backoffStrategy: getCustomBackoffStrategy(),
+          },
+        },
+      );
+
+      worker.on("completed", (job: Job) => {
+        logger.info({ jobId: job.id, jobName: job.name, queueName }, "Job completed successfully");
+        metrics.queueJobsCompleted.inc({ queue_name: queueName, job_type: job.name });
+      });
+
+      worker.on("failed", async (job: Job | undefined, err: Error) => {
+        logger.error(
+          { jobId: job?.id, jobName: job?.name, queueName, error: err.message },
+          "Job failed",
+        );
+        // Classify the error by its constructor name for finer-grained alerting
+        const errorType = err?.constructor?.name ?? "UnknownError";
+        metrics.queueJobsFailed.inc({
+          queue_name: queueName,
+          job_type: job?.name ?? "unknown",
+          error_type: errorType,
+        });
+
+        // Route permanently exhausted jobs to the Dead-Letter Queue
+        if (job && job.attemptsMade >= (job.opts.attempts || 1)) {
+          try {
+            await DeliveryDLQ.getInstance().moveToDLQ({
+              queue_name: job.queueName || queueName,
+              job_name: job.name || "default",
+              payload: job.data,
+              attempts: job.attemptsMade,
+              last_error: err.message,
+              last_response: job.returnvalue || null,
+            });
+          } catch (dlqErr) {
+            logger.error({ jobId: job?.id, err: dlqErr }, "Failed to move job to DLQ");
+          }
         }
-      }
-    });
+      });
+
+      this.workers.push(worker);
+    }
+
+    // Start periodic gauge polling for queue depth (waiting) across all queues
+    this.startGaugePolling();
+  }
+
+  /**
+   * Poll BullMQ for queue-depth counts and push them to the waiting gauge.
+   * This is done on a timer rather than per-event because BullMQ does not emit
+   * a "waiting" event for every enqueue operation.
+   */
+  private startGaugePolling() {
+    const metrics = getMetricsService();
+
+    for (const [queueName, queue] of Object.entries(this.queues)) {
+      const poller = setInterval(async () => {
+        try {
+          const counts = await queue.getJobCounts("waiting", "active", "delayed");
+          metrics.queueJobsWaiting.set({ queue_name: queueName, job_type: "all" }, counts.waiting ?? 0);
+          // active count from BullMQ as a cross-check (the per-job gauge is the
+          // authoritative in-flight metric, but this catches any drift)
+          metrics.queueJobsActive.set({ queue_name: queueName, job_type: "all" }, counts.active ?? 0);
+        } catch (err) {
+          logger.warn({ queueName, err }, "Failed to poll queue counts for metrics");
+        }
+      }, GAUGE_POLL_INTERVAL_MS);
+
+      // Allow Node to exit cleanly even if the poller is still running
+      poller.unref();
+      this.gaugePollers.push(poller);
+    }
   }
 
   public async getJobCounts() {
@@ -313,12 +398,24 @@ export class JobQueue {
   }
 
   public async stop() {
-    if (this.worker) {
-      await this.worker.close();
+    // Stop gauge pollers first
+    for (const t of this.gaugePollers) {
+      clearInterval(t);
     }
+    this.gaugePollers = [];
+
+    for (const worker of this.workers) {
+      await worker.close();
+    }
+    this.workers = [];
+
     for (const k of Object.keys(this.queues)) {
       await this.queues[k].close();
     }
     logger.info("Job queue system shut down");
+  }
+
+  public async pause(): Promise<void> {
+    await Promise.all(this.workers.map((worker) => worker.pause()));
   }
 }

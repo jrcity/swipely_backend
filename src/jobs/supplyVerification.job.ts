@@ -564,6 +564,7 @@ export class SupplyVerificationQueue {
    */
   public async stop(): Promise<void> {
     if (this.worker) {
+      await this.worker.pause();
       await this.worker.close();
       this.worker = null;
       logger.info("Supply verification worker stopped");
@@ -571,6 +572,10 @@ export class SupplyVerificationQueue {
 
     await this.queue.close();
     logger.info("Supply verification queue closed");
+  }
+
+  public async pause(): Promise<void> {
+    await this.worker?.pause();
   }
 }
 

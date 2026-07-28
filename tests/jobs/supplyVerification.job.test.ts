@@ -244,8 +244,8 @@ describe("SupplyVerificationQueue", () => {
 
       const closeWorkerSpy = vi.fn().mockResolvedValue(undefined);
       const closeQueueSpy = vi.spyOn(queue.queue, "close").mockResolvedValue(undefined);
-      
-      (queue as any).worker = { close: closeWorkerSpy };
+
+      (queue as any).worker = { pause: vi.fn().mockResolvedValue(undefined), close: closeWorkerSpy };
 
       await queue.stop();
 

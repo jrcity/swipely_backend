@@ -133,6 +133,7 @@ export async function initWebhookWorker(): Promise<void> {
 
 export async function stopWebhookWorker(): Promise<void> {
   if (webhookWorker) {
+    await webhookWorker.pause();
     await webhookWorker.close();
     webhookWorker = null;
     logger.info("Webhook delivery worker stopped");
@@ -141,6 +142,10 @@ export async function stopWebhookWorker(): Promise<void> {
     await webhookQueue.close();
     webhookQueue = null;
   }
+}
+
+export async function pauseWebhookWorker(): Promise<void> {
+  await webhookWorker?.pause();
 }
 
 export function getWebhookWorker(): Worker | null {

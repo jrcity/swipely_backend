@@ -4,8 +4,14 @@ import { IncidentService } from "../../src/services/incident.service.js";
 function makeChainable(rows: unknown[] = []) {
   const chain: Record<string, unknown> = {
     where: vi.fn().mockReturnThis(),
+    whereIn: vi.fn().mockReturnThis(),
+    whereBetween: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
+    groupBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
+    offset: vi.fn().mockReturnThis(),
+    count: vi.fn(() => Promise.resolve([{ count: String(rows.length) }])),
+    clone: vi.fn().mockReturnThis(),
     first: vi.fn().mockImplementation(() => Promise.resolve(rows[0] ?? null)),
     select: vi.fn().mockReturnThis(),
   };

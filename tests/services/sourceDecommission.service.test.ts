@@ -154,7 +154,7 @@ describe("SourceDecommissionService", () => {
         return builder;
       });
 
-      await expect(service.completeDecommission("old-source", "admin")).rejects.toThrow(/deprecation period/);
+      await expect(service.completeDecommission("old-source", "admin")).rejects.toThrow(/deprecation period/i);
     });
 
     it("completes and audits once all criteria are satisfied", async () => {

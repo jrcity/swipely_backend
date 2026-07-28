@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PerformanceBaselineService, type PerformanceSample } from "../../src/services/performanceBaseline.service.js";
 
-const mockQuery = vi.fn();
+const mockQuery = vi.hoisted(() => vi.fn());
 
 vi.mock("../../src/database/connection.js", () => ({
-  getDatabase: vi.fn(() => ({ query: mockQuery })),
+  getDatabase: vi.fn(() => ({ raw: mockQuery })),
 }));
 
 vi.mock("../../src/utils/logger.js", () => ({

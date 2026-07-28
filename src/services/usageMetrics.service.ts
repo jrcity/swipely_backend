@@ -15,19 +15,19 @@ export class UsageMetricsService {
   private db = getDatabase();
 
   async record(metric: UsageMetricRow) {
-    // fire-and-forget to avoid blocking request path
-    try {
-      void this.db("usage_metrics").insert({
+    // fire-and-forget: run async but catch errors so they don't go unhandled
+    this.db("usage_metrics")
+      .insert({
         endpoint: metric.endpoint,
         method: metric.method,
         status_code: metric.status_code,
         duration_ms: metric.duration_ms,
         user_id: metric.user_id ?? null,
         metadata: JSON.stringify(metric.metadata ?? {}),
+      })
+      .catch((e: unknown) => {
+        logger.warn({ err: e }, "Failed to record usage metric");
       });
-    } catch (e) {
-      logger.warn({ err: e }, "Failed to record usage metric");
-    }
   }
 
   async queryAggregates({ start, end, groupBy = "endpoint", rollup = "hour" }: { start?: string; end?: string; groupBy?: string; rollup?: string }) {

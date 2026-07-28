@@ -1,7 +1,8 @@
 import { providerCircuitBreakerService } from "../services/providerCircuitBreaker.service.js";
 import { logger } from "../utils/logger.js";
+import { config } from "../config/index.js";
 
-const PROBE_SWEEP_INTERVAL_MS = Number(process.env.PROVIDER_BREAKER_PROBE_INTERVAL_MS) || 30_000; // 30s default
+const PROBE_SWEEP_INTERVAL_MS = config.PROVIDER_BREAKER_PROBE_INTERVAL_MS;
 
 let probeSweepInterval: NodeJS.Timeout | null = null;
 

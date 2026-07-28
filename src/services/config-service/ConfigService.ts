@@ -2,6 +2,7 @@ import { Knex } from "knex";
 import { Redis } from "ioredis";
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 import { logger } from "../../utils/logger.js";
+import { config } from "../../config/index.js";
 import {
   ConfigKey,
   ConfigValue,
@@ -69,8 +70,9 @@ export class ConfigService {
     this.db = db;
     this.redis = redis;
     
-    // Initialize encryption key (32 bytes for AES-256)
-    const key = encryptionKey || process.env.CONFIG_ENCRYPTION_KEY || "default-key-change-in-production-32b";
+    // Initialize encryption key (32 bytes for AES-256) — prefer the injected
+    // key, then the validated env config, then a clearly-insecure dev fallback.
+    const key = encryptionKey ?? config.CONFIG_ENCRYPTION_KEY ?? "default-key-change-in-production-32b";
     this.encryptionKey = Buffer.from(key.padEnd(32, "0").slice(0, 32));
 
     // Subscribe to config change events for cache invalidation

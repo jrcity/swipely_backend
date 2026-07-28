@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { logger } from '../utils/logger.js';
 import { getDatabase } from '../database/connection.js';
+import { config } from '../config/index.js';
 import * as os from 'os';
 import * as fs from 'fs';
 
@@ -41,15 +42,8 @@ export interface HealthStatus {
   };
 }
 
-const HEALTH_CHECK_MEMORY_THRESHOLD = parseInt(
-  process.env.HEALTH_CHECK_MEMORY_THRESHOLD || '90',
-  10
-);
-
-const HEALTH_CHECK_DISK_THRESHOLD = parseInt(
-  process.env.HEALTH_CHECK_DISK_THRESHOLD || '80',
-  10
-);
+const HEALTH_CHECK_MEMORY_THRESHOLD = config.HEALTH_CHECK_MEMORY_THRESHOLD;
+const HEALTH_CHECK_DISK_THRESHOLD = config.HEALTH_CHECK_DISK_THRESHOLD;
 
 const startTime = Date.now();
 

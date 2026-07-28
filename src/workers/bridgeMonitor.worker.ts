@@ -4,7 +4,7 @@ import { BridgeService } from "../services/bridge.service.js";
 import { logger } from "../utils/logger.js";
 import { alertRoutingService, type RouteableAlert } from "../services/alertRouting.service.js";
 import { duplicateAlertCheckService } from "../services/duplicateAlertCheck.service.js";
-import type { AlertEvent } from "../services/alert.service.js";
+import type { AlertEventInput } from "../services/alert.service.js";
 import { getDatabase } from "../database/connection.js";
 
 const QUEUE_NAME = "bridge-monitor";
@@ -51,7 +51,7 @@ function buildMismatchAlert(assetCode: string, supplyCheck: { mismatchPercentage
     sourceType: "supply_mismatch",
     severity: "high",
     triggeredValue: supplyCheck.mismatchPercentage ?? 0,
-    threshold: config.BRIDGE_MISMATCH_THRESHOLD ?? 0.01,
+    threshold: config.BRIDGE_SUPPLY_MISMATCH_THRESHOLD,
     metric: "supply_mismatch_pct",
   };
 }
@@ -72,13 +72,13 @@ export async function processMonitorJob(job: { id?: string; data: { assetCode: s
   if (!supplyCheck.match) {
     logger.warn({ ...supplyCheck }, "Bridge supply mismatch detected");
 
-    const dedupEvent: Omit<AlertEvent, "eventId"> = {
+    const dedupEvent: AlertEventInput = {
       ruleId: `bridge-monitor-${assetCode}`,
       assetCode,
       alertType: "supply_mismatch",
       priority: "high",
       triggeredValue: supplyCheck.mismatchPercentage ?? 0,
-      threshold: config.BRIDGE_MISMATCH_THRESHOLD ?? 0.01,
+      threshold: config.BRIDGE_SUPPLY_MISMATCH_THRESHOLD,
       metric: "supply_mismatch_pct",
       webhookDelivered: false,
       onChainEventId: null,

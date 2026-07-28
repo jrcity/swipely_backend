@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createMockDb } from "../helpers/knexMock.js";
 import { DigestSchedulerService } from "../../src/services/digestScheduler.service.js";
 import type {
   DigestSubscription,
@@ -7,79 +8,14 @@ import type {
   UpdateSubscriptionInput,
 } from "../../src/services/digestScheduler.service.js";
 
-const mockDb = () => {
-  const store = {
-    digest_subscriptions: [] as any[],
-    digest_deliveries: [] as any[],
-    digest_items: [] as any[],
-    alert_events: [] as any[],
-    alert_rules: [] as any[],
-  };
-
-  const createQuery = (table: string) => {
-    const query: any = {
-      where: vi.fn().mockReturnThis(),
-      whereIn: vi.fn().mockReturnThis(),
-      whereBetween: vi.fn().mockReturnThis(),
-      whereNotNull: vi.fn().mockReturnThis(),
-      orderBy: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      orWhere: vi.fn(function (this: any, cb: any) {
-        cb.call(this);
-        return this;
-      }),
-      first: vi.fn(async () => {
-        const items = store[table as keyof typeof store];
-        return items.length > 0 ? items[0] : null;
-      }),
-      insert: vi.fn(async (data: any) => {
-        store[table as keyof typeof store].push(data);
-        return [data];
-      }),
-      update: vi.fn(async (data: any) => {
-        const items = store[table as keyof typeof store];
-        if (items.length > 0) {
-          Object.assign(items[0], data);
-          return [items[0]];
-        }
-        return [];
-      }),
-      delete: vi.fn(async () => 1),
-      select: vi.fn().mockReturnThis(),
-      returning: vi.fn(function (this: any) {
-        return this.insert.mock.results[this.insert.mock.results.length - 1]?.value ?? [];
-      }),
-    };
-
-    query.first.mockImplementation(async () => {
-      const items = store[table as keyof typeof store];
-      return items.length > 0 ? items[0] : null;
-    });
-
-    query.returning.mockImplementation(async () => {
-      const results = query.insert.mock.results;
-      if (results.length > 0) {
-        const lastResult = await results[results.length - 1].value;
-        return Array.isArray(lastResult) ? lastResult : [lastResult];
-      }
-      const updateResults = query.update.mock.results;
-      if (updateResults.length > 0) {
-        const lastResult = await updateResults[updateResults.length - 1].value;
-        return Array.isArray(lastResult) ? lastResult : [lastResult];
-      }
-      return [];
-    });
-
-    return query;
-  };
-
-  const db: any = (table: string) => createQuery(table);
-  db.raw = vi.fn();
-  db.fn = { now: () => new Date() };
-  db.__store = store;
-
-  return db;
-};
+const mockDb = () =>
+  createMockDb([
+    "digest_subscriptions",
+    "digest_deliveries",
+    "digest_items",
+    "alert_events",
+    "alert_rules",
+  ]);
 
 vi.mock("../../src/database/connection.js", () => ({
   getDatabase: vi.fn(),
@@ -194,11 +130,14 @@ describe("DigestSchedulerService", () => {
       };
 
       db("digest_subscriptions").where.mockReturnThis();
-      db("digest_subscriptions").update.mockResolvedValueOnce([
+      db("digest_subscriptions").returning.mockResolvedValueOnce([
         {
           ...existingSubscription,
           daily_enabled: false,
           timezone: "America/Los_Angeles",
+          quiet_hours: JSON.stringify({ start: 22, end: 7 }),
+          included_alert_types: JSON.stringify([]),
+          included_severities: JSON.stringify([]),
           updated_at: new Date(),
         },
       ]);
@@ -215,7 +154,7 @@ describe("DigestSchedulerService", () => {
     });
 
     it("throws error when subscription not found", async () => {
-      db("digest_subscriptions").update.mockResolvedValueOnce([]);
+      db("digest_subscriptions").returning.mockResolvedValueOnce([]);
 
       const updates: UpdateSubscriptionInput = {
         dailyEnabled: false,
@@ -241,10 +180,13 @@ describe("DigestSchedulerService", () => {
         isActive: false,
       };
 
-      db("digest_subscriptions").update.mockResolvedValueOnce([
+      db("digest_subscriptions").returning.mockResolvedValueOnce([
         {
           user_address: "GABC123",
           ...updates,
+          quiet_hours: JSON.stringify({ start: 22, end: 6 }),
+          included_alert_types: JSON.stringify(["health_score_drop"]),
+          included_severities: JSON.stringify(["high", "critical"]),
           updated_at: new Date(),
         },
       ]);
@@ -322,7 +264,7 @@ describe("DigestSchedulerService", () => {
         },
       ];
 
-      db("digest_subscriptions").where.mockReturnValueOnce(mockSubscriptions);
+      db.__store.digest_subscriptions.push(...mockSubscriptions);
 
       const subscriptions = await service.listActiveSubscriptions();
 
@@ -343,7 +285,7 @@ describe("DigestSchedulerService", () => {
         },
       ];
 
-      db("digest_subscriptions").where.mockReturnValueOnce(mockSubscriptions);
+      db.__store.digest_subscriptions.push(...mockSubscriptions);
 
       await service.listActiveSubscriptions("daily");
 

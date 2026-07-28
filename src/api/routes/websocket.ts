@@ -36,7 +36,10 @@ export async function websocketRoutes(server: FastifyInstance) {
     "/",
     { websocket: true },
     (socket, request) => {
-      wsServer.handleConnection(socket as unknown as Parameters<typeof wsServer.handleConnection>[0], request);
+      wsServer.handleConnection(
+        socket as unknown as Parameters<typeof wsServer.handleConnection>[0],
+        request as unknown as Parameters<typeof wsServer.handleConnection>[1]
+      );
     }
   );
 

@@ -107,6 +107,10 @@ export class OutboxSystem {
     }
   }
 
+  async beginDrain(): Promise<void> {
+    await this.dispatcher?.beginDrain();
+  }
+
   /**
    * Get the admin API instance
    */

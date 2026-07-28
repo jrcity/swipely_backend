@@ -106,7 +106,7 @@ describe("TagSyncService", () => {
     it("succeeds with valid inputs", async () => {
       vi.spyOn(TagModel.prototype, "findByEntity").mockResolvedValue([]);
       vi.spyOn(TagModel.prototype, "addTag").mockResolvedValue({} as any);
-      vi.spyOn(TagModel.prototype, "removeTag").mockResolvedValue(false);
+      vi.spyOn(TagModel.prototype, "removeEntityTag").mockResolvedValue(false);
 
       const result = await service.syncEntityTags("asset", "entity-1", [
         "valid-tag",

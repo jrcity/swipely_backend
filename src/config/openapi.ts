@@ -28,6 +28,12 @@ function resolveTagFromPath(url: string): string {
   if (url.startsWith("/api/v1/balances")) return "Assets";
   if (url.startsWith("/api/v1/webhooks")) return "Alerts";
   if (url.startsWith("/api/v1/admin")) return "Config";
+  if (url.startsWith("/api/v1/auth")) return "Auth";
+  if (url.startsWith("/api/v1/users")) return "Users";
+  if (url.startsWith("/api/v1/wallets")) return "Wallets";
+  if (url.startsWith("/api/v1/payments")) return "Payments";
+  if (url.startsWith("/api/v1/risk")) return "Risk";
+  if (url.startsWith("/api/v1/audit")) return "Audit";
   if (url.startsWith("/api/v1/health") || url.startsWith("/health")) return "Health";
   return "Config";
 }
@@ -36,7 +42,10 @@ function isProtectedPath(url: string): boolean {
   return (
     url.startsWith("/api/v1/alerts") ||
     url.startsWith("/api/v1/admin") ||
-    url.startsWith("/api/v1/jobs")
+    url.startsWith("/api/v1/jobs") ||
+    url.startsWith("/api/v1/wallets") ||
+    url.startsWith("/api/v1/payments") ||
+    url.startsWith("/api/v1/transactions")
   );
 }
 
@@ -44,166 +53,194 @@ export const swaggerOptions: FastifyDynamicSwaggerOptions = {
   openapi: {
     openapi: "3.0.3",
     info: {
-      title: "Bridge-Watch API",
+      title: "Swipely API",
+      version: "1.0.0",
       description: `
 ## Overview
-Bridge-Watch is a real-time Stellar bridge monitoring platform. This API provides access to
-bridge statuses, asset health scores, liquidity data, price feeds, alert management, analytics,
-and administrative controls.
+Swipely is a payment platform API. This documentation covers all available endpoints.
 
 ## Authentication
-Protected endpoints require an API key supplied via the \`x-api-key\` request header.
+Most endpoints require JWT authentication via Bearer token.
 
 ## Rate Limiting
-All endpoints are subject to rate limiting. Limits are applied per IP address using a
-sliding-window algorithm backed by Redis. When a limit is exceeded the server returns
-**429 Too Many Requests** with a \`Retry-After\` header.
-
-## Versioning
-All REST endpoints are prefixed with \`/api/v1/\`. Breaking changes will increment the
-version segment. The current and previous version are always supported concurrently for at
-least 90 days after a new version is released.
-
-## Error Format
-\`\`\`json
-{
-  "error": "Short machine-readable label",
-  "message": "Human-readable description"
-}
-\`\`\`
-      `.trim(),
-      version: "1.0.0",
-      contact: {
-        name: "Bridge-Watch Team",
-        url: "https://github.com/StellaBridge/Bridge-Watch",
-      },
+API requests are rate-limited to prevent abuse.
+      `,
       license: {
         name: "MIT",
         url: "https://opensource.org/licenses/MIT",
       },
+      contact: {
+        name: "Swipely Support",
+        email: "support@swipely.com",
+      },
     },
     servers: [
       {
-        url: "http://localhost:3000",
-        description: "Local development",
+        url: "http://localhost:3000/api/v1",
+        description: "Development server",
       },
       {
-        url: "https://api.bridge-watch.io",
-        description: "Production",
+        url: "https://api.swipely.com/api/v1",
+        description: "Production server",
       },
     ],
     components: {
       securitySchemes: {
-        ApiKeyAuth: {
-          type: "apiKey",
-          in: "header",
-          name: "x-api-key",
-          description: "API key for protected endpoints",
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description: "Enter JWT token",
         },
       },
       schemas: {
-        Error: {
+        ErrorResponse: {
           type: "object",
           properties: {
-            error: { type: "string", example: "Not Found" },
-            message: { type: "string", example: "The requested resource was not found" },
+            status: { type: "string", example: "error" },
+            message: { type: "string", example: "Something went wrong" },
+            code: { type: "string", example: "INTERNAL_ERROR" },
           },
         },
-        PaginationMeta: {
+        ValidationError: {
           type: "object",
           properties: {
-            total: { type: "integer", example: 42 },
-            page: { type: "integer", example: 1 },
-            limit: { type: "integer", example: 20 },
+            status: { type: "string", example: "error" },
+            message: { type: "string", example: "Validation failed" },
+            errors: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  field: { type: "string", example: "email" },
+                  message: { type: "string", example: "Email is required" },
+                },
+              },
+            },
           },
         },
-        HealthScore: {
+        User: {
           type: "object",
           properties: {
-            symbol: { type: "string", example: "USDC" },
-            score: { type: "number", format: "float", minimum: 0, maximum: 100, example: 87.5 },
-            status: { type: "string", enum: ["healthy", "warning", "critical"], example: "healthy" },
-            updatedAt: { type: "string", format: "date-time" },
-          },
-        },
-        AlertRule: {
-          type: "object",
-          properties: {
-            id: { type: "string", format: "uuid" },
-            ownerAddress: { type: "string" },
-            name: { type: "string" },
-            assetCode: { type: "string" },
-            conditions: { type: "array", items: { type: "object" } },
-            conditionOp: { type: "string", enum: ["AND", "OR"] },
-            priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
-            cooldownSeconds: { type: "integer" },
-            webhookUrl: { type: "string", format: "uri" },
+            id: { type: "string", example: "123e4567-e89b-12d3-a456-426614174000" },
+            email: { type: "string", example: "user@example.com" },
+            name: { type: "string", example: "John Doe" },
+            role: { type: "string", enum: ["user", "admin"], example: "user" },
             createdAt: { type: "string", format: "date-time" },
           },
         },
-        Watchlist: {
+        Wallet: {
           type: "object",
           properties: {
-            id: { type: "string", format: "uuid" },
-            userId: { type: "string" },
-            name: { type: "string" },
-            isDefault: { type: "boolean" },
-            assets: { type: "array", items: { type: "string" } },
+            id: { type: "string", example: "123e4567-e89b-12d3-a456-426614174000" },
+            userId: { type: "string", example: "123e4567-e89b-12d3-a456-426614174000" },
+            publicKey: { type: "string", example: "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890" },
+            balance: { type: "string", example: "100.50" },
+            isFrozen: { type: "boolean", example: false },
+            createdAt: { type: "string", format: "date-time" },
+          },
+        },
+        Transaction: {
+          type: "object",
+          properties: {
+            id: { type: "string", example: "123e4567-e89b-12d3-a456-426614174000" },
+            txHash: { type: "string", example: "0x1234567890abcdef" },
+            type: { type: "string", enum: ["send", "receive", "swap"] },
+            amount: { type: "string", example: "25.50" },
+            status: { type: "string", enum: ["pending", "completed", "failed"] },
             createdAt: { type: "string", format: "date-time" },
           },
         },
       },
     },
+    security: [
+      {
+        bearerAuth: [],
+      },
+    ],
     tags: [
-      { name: "Health", description: "Service health check" },
-      { name: "Assets", description: "Monitored asset data — prices, liquidity, and health scores" },
-      { name: "Bridges", description: "Stellar bridge status and statistics" },
-      { name: "Alerts", description: "Alert rule management and history (requires API key)" },
-      { name: "Analytics", description: "Protocol-wide and per-asset analytics" },
-      { name: "Aggregation", description: "Time-series aggregation of prices, health, and volume" },
-      { name: "Metadata", description: "Asset metadata — logos, descriptions, social links" },
-      { name: "Watchlists", description: "User watchlists" },
-      { name: "Preferences", description: "User preference storage" },
-      { name: "Jobs", description: "Background job queue monitoring and control" },
-      { name: "Config", description: "Runtime configuration and feature flags" },
-      { name: "Cache", description: "Redis cache inspection and invalidation" },
-      { name: "Circuit Breaker", description: "Automated circuit-breaker pause controls" },
+      { name: "Auth", description: "Authentication endpoints" },
+      { name: "Users", description: "User management endpoints" },
+      { name: "Wallets", description: "Wallet management endpoints" },
+      { name: "Transactions", description: "Transaction endpoints" },
+      { name: "Payments", description: "Payment processing endpoints" },
+      { name: "Alerts", description: "Alert management endpoints" },
+      { name: "Assets", description: "Asset management endpoints" },
+      { name: "Bridges", description: "Bridge monitoring endpoints" },
+      { name: "Analytics", description: "Analytics endpoints" },
+      { name: "Risk", description: "Risk assessment endpoints" },
+      { name: "Audit", description: "Audit log endpoints" },
+      { name: "Health", description: "Health check endpoints" },
+      { name: "Config", description: "Configuration endpoints" },
     ],
   },
-  transform: ({ schema, url, route }) => {
-    const routeSchema: FastifySchema = schema ?? {};
-    const method = String(route.method).toUpperCase();
-    const defaultSummary = `${method} ${url}`;
-    const mergedSchema: FastifySchema = {
-      ...routeSchema,
-      tags: routeSchema.tags ?? [resolveTagFromPath(url)],
-      summary: routeSchema.summary ?? defaultSummary,
-      description:
-        routeSchema.description ??
-        "Auto-generated endpoint documentation. Add an explicit route schema for richer request/response examples.",
-      security: routeSchema.security ?? (isProtectedPath(url) ? [{ ApiKeyAuth: [] }] : undefined),
-      response: routeSchema.response ?? {
-        200: {
-          type: "object",
-          additionalProperties: true,
-          examples: [
-            {
-              example: {
-                success: true,
-                path: url,
-                timestamp: new Date().toISOString(),
-              },
-            },
-          ],
-        },
-        500: DEFAULT_ERROR_RESPONSE,
-      },
-    };
+};
 
-    return {
-      schema: mergedSchema,
-      url,
-    };
+// Helper to create common response schemas
+export const commonResponses = {
+  200: {
+    description: "Success",
+    content: {
+      "application/json": {
+        schema: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: { type: "object" },
+          },
+        },
+      },
+    },
+  },
+  400: {
+    description: "Validation error",
+    content: {
+      "application/json": {
+        schema: {
+          $ref: "#/components/schemas/ValidationError",
+        },
+      },
+    },
+  },
+  401: {
+    description: "Unauthorized",
+    content: {
+      "application/json": {
+        schema: {
+          $ref: "#/components/schemas/ErrorResponse",
+        },
+      },
+    },
+  },
+  403: {
+    description: "Forbidden",
+    content: {
+      "application/json": {
+        schema: {
+          $ref: "#/components/schemas/ErrorResponse",
+        },
+      },
+    },
+  },
+  404: {
+    description: "Not found",
+    content: {
+      "application/json": {
+        schema: {
+          $ref: "#/components/schemas/ErrorResponse",
+        },
+      },
+    },
+  },
+  500: {
+    description: "Internal server error",
+    content: {
+      "application/json": {
+        schema: {
+          $ref: "#/components/schemas/ErrorResponse",
+        },
+      },
+    },
   },
 };
 

@@ -1,7 +1,8 @@
 import { sourceDecommissionService } from "../services/sourceDecommission.service.js";
 import { logger } from "../utils/logger.js";
+import { config } from "../config/index.js";
 
-const CHECK_INTERVAL_MS = Number(process.env.SOURCE_DECOMMISSION_CHECK_INTERVAL_MS) || 3_600_000; // 1 hour default
+const CHECK_INTERVAL_MS = config.SOURCE_DECOMMISSION_CHECK_INTERVAL_MS;
 
 let decommissionCheckInterval: NodeJS.Timeout | null = null;
 

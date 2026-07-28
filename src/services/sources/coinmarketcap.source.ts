@@ -9,6 +9,7 @@
 
 import { redis } from "../../utils/redis.js";
 import { logger } from "../../utils/logger.js";
+import { config } from "../../config/index.js";
 import { withRetry } from "../../utils/retry.js";
 import { providerAllowlistService } from "../providerAllowlist.service.js";
 
@@ -111,7 +112,7 @@ export class CoinMarketCapSource {
   private readonly apiKey: string | undefined;
 
   constructor() {
-    this.apiKey = process.env.COINMARKETCAP_API_KEY;
+    this.apiKey = config.COINMARKETCAP_API_KEY;
   }
 
   static supports(symbol: string): boolean {

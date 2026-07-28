@@ -1,0 +1,21 @@
+{
+  "assets": [
+    {
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "sourceChain": "ethereum",
+      "issuerAddress": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+    },
+    {
+      "symbol": "EURC",
+      "name": "Euro Coin",
+      "sourceChain": "ethereum",
+      "issuerAddress": "GDQOE23CFSUMSVZZ4YRVXGW7PCFNIAHLMRAHDE4Z32DIBQGH4KZZK2KZ"
+    },
+    {
+      "symbol": "XLM",
+      "name": "Stellar Lumens"
+    }
+  ],
+  "total": 3
+}

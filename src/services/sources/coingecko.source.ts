@@ -11,6 +11,7 @@
 
 import { redis } from "../../utils/redis.js";
 import { logger } from "../../utils/logger.js";
+import { config } from "../../config/index.js";
 import { withRetry } from "../../utils/retry.js";
 import { schemaDriftService } from "../schemaDrift.service.js";
 import { providerAllowlistService } from "../providerAllowlist.service.js";
@@ -103,8 +104,8 @@ export class CoinGeckoSource {
   constructor() {
     this.headers = {
       Accept: "application/json",
-      ...(process.env.COINGECKO_API_KEY
-        ? { "x-cg-demo-api-key": process.env.COINGECKO_API_KEY }
+      ...(config.COINGECKO_API_KEY
+        ? { "x-cg-demo-api-key": config.COINGECKO_API_KEY }
         : {}),
     };
   }

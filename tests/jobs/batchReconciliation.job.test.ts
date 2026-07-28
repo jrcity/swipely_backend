@@ -23,9 +23,11 @@ vi.mock("../../src/database/connection.js", () => ({
   getDatabase: vi.fn(),
 }));
 
-const mockStartRun = vi.fn();
-const mockFinishRun = vi.fn();
-const mockGetLatestRun = vi.fn();
+const { mockStartRun, mockFinishRun, mockGetLatestRun } = vi.hoisted(() => ({
+  mockStartRun: vi.fn(),
+  mockFinishRun: vi.fn(),
+  mockGetLatestRun: vi.fn(),
+}));
 
 vi.mock("../../src/services/reconciliation.service.js", () => ({
   ReconciliationService: vi.fn(() => ({

@@ -25,7 +25,9 @@ export class OutboxDispatcher {
   private dispatchQueue: Queue;
   private dispatchWorker: Worker;
   private pollingTimer: NodeJS.Timeout | null = null;
+  private pollingPromise: Promise<void> | null = null;
   private isRunning = false;
+  private isDraining = false;
 
   constructor(
     private db: Knex,
@@ -74,11 +76,12 @@ export class OutboxDispatcher {
     }
 
     this.isRunning = true;
+    this.isDraining = false;
     logger.info("Starting outbox dispatcher");
 
     // Start polling for pending events
     this.pollingTimer = setInterval(
-      () => this.pollAndDispatch(),
+      () => { this.pollingPromise = this.pollAndDispatch(); },
       this.dispatcherConfig.pollIntervalMs
     );
 
@@ -96,18 +99,12 @@ export class OutboxDispatcher {
    * Stop the outbox dispatcher
    */
   async stop(): Promise<void> {
-    if (!this.isRunning) {
+    if (!this.isRunning && !this.isDraining) {
       return;
     }
 
-    this.isRunning = false;
-    logger.info("Stopping outbox dispatcher");
-
-    // Stop polling
-    if (this.pollingTimer) {
-      clearInterval(this.pollingTimer);
-      this.pollingTimer = null;
-    }
+    await this.beginDrain();
+    logger.info("Draining outbox dispatcher");
 
     // Close worker and queue
     await this.dispatchWorker.close();
@@ -116,17 +113,33 @@ export class OutboxDispatcher {
     logger.info("Outbox dispatcher stopped");
   }
 
+  async beginDrain(): Promise<void> {
+    if (this.isDraining) return;
+
+    this.isDraining = true;
+    this.isRunning = false;
+    if (this.pollingTimer) {
+      clearInterval(this.pollingTimer);
+      this.pollingTimer = null;
+    }
+
+    await this.dispatchWorker.pause();
+    await this.pollingPromise;
+    logger.info("Outbox dispatcher intake paused");
+  }
+
   /**
    * Poll for pending events and dispatch them
    */
   private async pollAndDispatch(): Promise<void> {
     try {
+      if (!this.isRunning || this.isDraining) return;
       const pendingEvents = await this.outboxProducer.getPendingEvents(
         this.dispatcherConfig.batchSize,
         true // skipLocked to prevent duplicate processing
       );
 
-      if (pendingEvents.length === 0) {
+      if (pendingEvents.length === 0 || this.isDraining) {
         return;
       }
 
@@ -180,8 +193,10 @@ export class OutboxDispatcher {
         }
 
         // Mark as processing
-        const marked = await this.outboxProducer.markProcessing(eventId);
-        if (!marked) {
+        const marked = await tx("outbox_events")
+          .where({ id: eventId, status: "pending" })
+          .update({ status: "processing" });
+        if (marked === 0) {
           logger.debug({ eventId }, "Event already being processed, skipping");
           return;
         }
@@ -190,7 +205,9 @@ export class OutboxDispatcher {
         await this.dispatchEvent(event);
 
         // Mark as delivered
-        await this.outboxProducer.markDelivered(eventId);
+        await tx("outbox_events")
+          .where({ id: eventId })
+          .update({ status: "delivered", delivered_at: new Date() });
 
         logger.debug(
           {

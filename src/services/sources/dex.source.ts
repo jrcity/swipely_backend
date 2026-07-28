@@ -12,6 +12,7 @@
 
 import { redis } from "../../utils/redis.js";
 import { logger } from "../../utils/logger.js";
+import { config } from "../../config/index.js";
 import { withRetry } from "../../utils/retry.js";
 import { providerAllowlistService } from "../providerAllowlist.service.js";
 
@@ -368,7 +369,7 @@ export class DexSource {
   ): Promise<DexPriceResult[]> {
     if (symbols.length === 0) return [];
 
-    const apiKey = process.env.ONEINCH_API_KEY;
+    const apiKey = config.ONEINCH_API_KEY;
     if (!apiKey) {
       logger.debug("1inch API key not configured — skipping");
       return [];

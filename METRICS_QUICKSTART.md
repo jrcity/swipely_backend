@@ -186,6 +186,64 @@ docker-compose -f docker-compose.monitoring.yml down -v
 - Review histogram bucket configuration
 - Reduce Prometheus retention period
 
+## Worker Fleet Metrics
+
+The BullMQ background workers expose the following Prometheus metrics. All
+metrics are labeled with `queue_name` (e.g. `bridge-watch-jobs-critical`) and
+`job_type` (the BullMQ job name, or `"all"` for the periodic depth poll).
+
+### Emitted metrics
+
+| Metric | Type | Description |
+| --- | --- | --- |
+| `queue_jobs_waiting` | Gauge | Number of jobs waiting to be picked up (polled every 15 s). Equivalent to "queue depth". |
+| `queue_jobs_active` | Gauge | Number of jobs currently being processed by a worker. |
+| `queue_jobs_completed_total` | Counter | Total jobs that finished successfully. |
+| `queue_jobs_failed_total` | Counter | Total jobs that threw an error. Carries an extra `error_type` label (the exception class name). |
+| `queue_job_duration_seconds` | Histogram | Wall-clock time from job start to completion (or failure), in seconds. Buckets: 1 s, 5 s, 10 s, 30 s, 60 s, 120 s, 300 s, 600 s. |
+
+### Example PromQL queries
+
+```promql
+# Current depth per priority queue
+queue_jobs_waiting{job_type="all"}
+
+# p50 / p95 / p99 job latency per queue (last 5 min)
+histogram_quantile(0.50, sum by (queue_name, le) (rate(queue_job_duration_seconds_bucket[5m])))
+histogram_quantile(0.95, sum by (queue_name, le) (rate(queue_job_duration_seconds_bucket[5m])))
+histogram_quantile(0.99, sum by (queue_name, le) (rate(queue_job_duration_seconds_bucket[5m])))
+
+# Failure rate as a ratio per queue (last 5 min)
+sum by (queue_name) (rate(queue_jobs_failed_total[5m]))
+  /
+(
+  sum by (queue_name) (rate(queue_jobs_completed_total[5m]))
+  + sum by (queue_name) (rate(queue_jobs_failed_total[5m]))
+)
+
+# In-flight jobs per queue (real-time)
+queue_jobs_active{job_type="all"}
+```
+
+### Grafana panels
+
+The **Application Overview** dashboard (`grafana/dashboards/application-overview.json`)
+includes a "Worker Fleet" section with the following panels:
+
+- **Queue Depth (Waiting Jobs)** — time-series per queue with a threshold overlay at 100 jobs.
+- **Job Processing Latency (p50 / p95 / p99)** — multi-quantile overlay per queue.
+- **Job Failure Rate** — failures/s and the failure ratio on the same panel.
+- **In-Flight Jobs** — current active job count per queue.
+
+### Alert rules
+
+Two dedicated alert rules are defined in `prometheus-alerts.yml`:
+
+| Alert | Condition | Duration | Severity |
+| --- | --- | --- | --- |
+| `QueueBacklogSustained` | `queue_jobs_waiting{job_type="all"} > 200` | 5 min | critical |
+| `QueueElevatedFailureRate` | per-queue failure ratio > 20 % | 10 min | critical |
+
 ## Next Steps
 
 1. Review available metrics in `docs/metrics-collection.md`
