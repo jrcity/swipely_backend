@@ -88,7 +88,7 @@ const makeMockDb = () => {
     const trx: any = (table: string) => db(table);
     trx.raw = db.raw;
     trx.fn  = db.fn;
-    return cb(trx);
+    return callback(trx);
   });
   db.__store = store;
 
@@ -132,7 +132,7 @@ describe("ExternalDependencyMonitorService", () => {
     it("lists all dependencies", async () => {
       const mockDeps = [{ provider_key: "stellar-horizon", display_name: "Stellar Horizon", category: "core-rpc", endpoint: "https://horizon.stellar.org", check_type: "http", latency_warning_ms: 750, latency_critical_ms: 2000, failure_threshold: 2, maintenance_mode: false, maintenance_note: null, status: "healthy", last_checked_at: new Date().toISOString(), last_latency_ms: 150, consecutive_failures: 0, last_success_at: new Date().toISOString(), last_failure_at: null, last_error: null }];
 
-      db("external_dependencies").orderBy.mockResolvedValueOnce(mockDependencies);
+      db("external_dependencies").orderBy.mockResolvedValueOnce(mockDeps);
 
       const result = await service.listDependencies();
 
@@ -143,7 +143,6 @@ describe("ExternalDependencyMonitorService", () => {
 
     it("includes history when requested", async () => {
       const mockDeps = [{ provider_key: "stellar-horizon", display_name: "Stellar Horizon", category: "core-rpc", endpoint: "https://horizon.stellar.org", check_type: "http", latency_warning_ms: 750, latency_critical_ms: 2000, failure_threshold: 2, maintenance_mode: false, status: "healthy", last_checked_at: new Date().toISOString(), consecutive_failures: 0 }];
-      const mockHistory = [{ id: "c1", provider_key: "stellar-horizon", status: "healthy", checked_at: new Date().toISOString(), latency_ms: 150, status_code: 200, within_threshold: true, alert_triggered: false, error: null, details: "{}" }];
 
       const mockHistory = [
         {
@@ -160,7 +159,7 @@ describe("ExternalDependencyMonitorService", () => {
         },
       ];
 
-      db("external_dependencies").orderBy.mockResolvedValueOnce(mockDependencies);
+      db("external_dependencies").orderBy.mockResolvedValueOnce(mockDeps);
       db("external_dependency_checks").orderBy.mockResolvedValueOnce(mockHistory);
 
       const result = await service.listDependencies({ includeHistory: true, historyLimit: 10 });
@@ -268,6 +267,14 @@ describe("ExternalDependencyMonitorService", () => {
 
   describe("setMaintenanceMode", () => {
     const baseDep = { provider_key: "stellar-horizon", display_name: "Stellar Horizon", category: "core-rpc", endpoint: "https://horizon.stellar.org", check_type: "http", latency_warning_ms: 750, latency_critical_ms: 2000, failure_threshold: 2, consecutive_failures: 0 };
+
+    it("enables maintenance mode", async () => {
+      const mockDependency = {
+        ...baseDep,
+        maintenance_mode: true,
+        maintenance_note: "upgrade",
+        status: "maintenance",
+      };
 
       db("external_dependencies").returning.mockResolvedValueOnce([mockDependency]);
 

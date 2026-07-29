@@ -208,7 +208,7 @@ describe("ReportSchedulingService.generateReportHtml", () => {
       expect(getProtocolStatsMock).toHaveBeenCalledOnce();
       expect(getAssetRankingsMock).toHaveBeenCalledOnce();
       expect(getRecentAlertsMock).toHaveBeenCalledWith(50);
-      expect(getDriftSummariesMock).toHaveBeenCalledWith();
+      expect(getDriftSummariesMock).toHaveBeenCalledWith({});
     });
   });
 

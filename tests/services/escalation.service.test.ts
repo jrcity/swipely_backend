@@ -339,8 +339,6 @@ describe("EscalationService", () => {
     it("escalates when acknowledgement required but not received", async () => {
       const pastTime = new Date(Date.now() - 45 * 60 * 1000);
       const incident = { id: "incident-123", severity: "critical", current_escalation_level: 1, status: "open", updated_at: pastTime, acknowledged_at: null };
-      const rule = { timeout_minutes: 30, require_acknowledgement: true, to_level: 2, notification_channels: JSON.stringify([]), route_to: JSON.stringify([]) };
-
       const rule = {
         timeout_minutes: 30,
         require_acknowledgement: true,
